@@ -102,7 +102,7 @@ vim.g.have_nerd_font = false
 vim.opt.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.opt.relativenumber = true
+vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.opt.mouse = 'a'
@@ -240,6 +240,7 @@ vim.opt.rtp:prepend(lazypath)
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
+  'tpope/vim-commentary',
 
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
@@ -583,11 +584,28 @@ require('lazy').setup({
       --  - capabilities (table): Override fields in capabilities. Can be used to disable certain LSP features.
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
+      local root_files = {
+        '.pre-commit-config.yaml',
+        'pyproject.toml',
+        'setup.py',
+        'setup.cfg',
+        'requirements.txt',
+        'Pipfile',
+        'pyrightconfig.json',
+      }
       local servers = {
         -- clangd = {},
-        -- gopls = {},
+        gopls = {
+          capabilities = capabilities,
+          analyses = {
+            unusedparams = true,
+          },
+          staticcheck = true,
+          gofumpt = true,
+        },
         -- black = {},
         ruff = {
+          root_dir = require('lspconfig.util').root_pattern(unpack(root_files)),
           capabilities = capabilities,
           settings = {
             organizeImports = false,
@@ -601,7 +619,15 @@ require('lazy').setup({
           end,
         },
         pyright = {
+          root_dir = require('lspconfig.util').root_pattern(unpack(root_files)),
           capabilities = capabilities,
+          settings = {
+            python = {
+              analysis = {
+                typeCheckingMode = 'off',
+              },
+            },
+          },
         },
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
@@ -640,6 +666,19 @@ require('lazy').setup({
       require('mason-lspconfig').setup { ensure_installed = { 'pyright' } }
       require('lspconfig').pyright.setup {}
 
+      --      require('mason-lspconfig').setup {
+      --        handlers = {
+      --          function(server_name)
+      --            local server = local_servers[server_name] or {}
+      --            -- This handles overriding only values explicitly passed
+      --            -- by the server configuration above. Useful when disabling
+      --            -- certain features of an LSP (for example, turning off formatting for tsserver)
+      --            server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
+      --            require('lspconfig')[server_name].setup(server)
+      --          end,
+      --        },
+      --      }
+      --
       -- You can add other tools here that you want Mason to install
       -- for you, so that they are available from within Neovim.
       local ensure_installed = vim.tbl_keys(servers or {})
@@ -917,7 +956,6 @@ require('lazy').setup({
   -- require 'kickstart.plugins.autopairs',
   -- require 'kickstart.plugins.neo-tree',
   -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
-
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
   --
@@ -946,6 +984,38 @@ require('lazy').setup({
   },
 })
 
+-- Local LSPs
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'go',
+  callback = function(ev)
+    vim.lsp.start {
+      name = 'emoji-lsp',
+      cmd = { '/Users/gino/projects/emoji_lsp/bin/emoji-lsp' },
+      root_dir = vim.fn.getcwd(),
+      autostart = true,
+      config = { filetypes = { 'go' } },
+      on_attach = function(client, bufnr)
+        vim.lsp.buf_attach_client(bufnr, client.id)
+      end,
+    }
+  end,
+})
+
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'go',
+  callback = function(ev)
+    vim.lsp.start {
+      name = 'chinese-lsp',
+      cmd = { '/Users/gino/projects/chinese_lsp/bin/chinese-lsp' },
+      root_dir = vim.fn.getcwd(),
+      autostart = true,
+      config = { filetypes = { 'go' } },
+      on_attach = function(client, bufnr)
+        vim.lsp.buf_attach_client(bufnr, client.id)
+      end,
+    }
+  end,
+})
 -- Harpoon
 local harpoon = require 'harpoon'
 
@@ -960,24 +1030,11 @@ vim.keymap.set('n', '<C-e>', function()
   harpoon.ui:toggle_quick_menu(harpoon:list())
 end)
 
-vim.keymap.set('n', '<leader>2', function()
-  harpoon:list():select(1)
-end)
-vim.keymap.set('n', '<leader>3', function()
-  harpoon:list():select(2)
-end)
-vim.keymap.set('n', '<leader>4', function()
-  harpoon:list():select(3)
-end)
-vim.keymap.set('n', '<leader>7', function()
-  harpoon:list():select(4)
-end)
-
 -- Toggle previous & next buffers stored within Harpoon list
-vim.keymap.set('n', '<C-S-P>', function()
+vim.keymap.set('n', '<C-7>', function()
   harpoon:list():prev()
 end)
-vim.keymap.set('n', '<C-S-N>', function()
+vim.keymap.set('n', '<C-8>', function()
   harpoon:list():next()
 end)
 
@@ -988,6 +1045,16 @@ local function toggle_telescope(harpoon_files)
   for _, item in ipairs(harpoon_files.items) do
     table.insert(file_paths, item.value)
   end
+  local finder = function()
+    local paths = {}
+    for _, item in ipairs(harpoon_files.items) do
+      table.insert(paths, item.value)
+    end
+
+    return require('telescope.finders').new_table {
+      results = paths,
+    }
+  end
 
   require('telescope.pickers')
     .new({}, {
@@ -996,6 +1063,17 @@ local function toggle_telescope(harpoon_files)
         results = file_paths,
       },
       previewer = conf.file_previewer {},
+      attach_mappings = function(prompt_bufnr, map)
+        map('i', '<C-d>', function()
+          local state = require 'telescope.actions.state'
+          local selected_entry = state.get_selected_entry()
+          local current_picker = state.get_current_picker(prompt_bufnr)
+
+          table.remove(harpoon_files.items, selected_entry.index)
+          current_picker:refresh(finder())
+        end)
+        return true
+      end,
       sorter = conf.generic_sorter {},
     })
     :find()
