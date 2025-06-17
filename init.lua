@@ -184,7 +184,7 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   desc = 'Highlight when yanking (copying) text',
   group = vim.api.nvim_create_augroup('kickstart-highlight-yank', { clear = true }),
   callback = function()
-    vim.hl.on_yank()
+    vim.highlight.on_yank()
   end,
 })
 
@@ -229,7 +229,7 @@ require('lazy').setup({
   --    require('Comment').setup({})
 
   -- "gc" to comment visual regions/lines
-  --{ 'numToStr/Comment.nvim', opts = {} },
+  { 'numToStr/Comment.nvim', opts = {} },
 
   -- Alternatively, use `config = function() ... end` for full control over the configuration.
   -- If you prefer to call `setup` explicitly, use:
@@ -661,7 +661,6 @@ require('lazy').setup({
       }
       local servers = {
         -- clangd = {},
-        zls = {},
         gopls = {
           capabilities = capabilities,
           analyses = {
@@ -739,18 +738,12 @@ require('lazy').setup({
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
-      require('mason-lspconfig').setup { ensure_installed = { 'pyright' } }
-      require('lspconfig').pyright.setup {}
-
       require('mason-lspconfig').setup {
-        ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
+        ensure_installed = {},
         automatic_installation = false,
         handlers = {
           function(server_name)
             local server = servers[server_name] or {}
-            -- This handles overriding only values explicitly passed
-            -- by the server configuration above. Useful when disabling
-            -- certain features of an LSP (for example, turning off formatting for ts_ls)
             server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
             require('lspconfig')[server_name].setup(server)
           end,
@@ -932,7 +925,58 @@ require('lazy').setup({
 
   -- Highlight todo, notes, etc in comments
   { 'folke/todo-comments.nvim', event = 'VimEnter', dependencies = { 'nvim-lua/plenary.nvim' }, opts = { signs = false } },
-
+  {
+    'github/copilot.vim',
+  },
+  {
+    'olimorris/codecompanion.nvim',
+    cmd = { 'CodeCompanion', 'CodeCompanionChat', 'CodeCompanionActions' },
+    opts = {
+      adapters = {
+        copilot = function()
+          return require('codecompanion.adapters').extend('copilot', {
+            schema = {
+              model = {
+                default = 'claude-3.7-sonnet',
+              },
+            },
+          })
+        end,
+      },
+      strategies = {
+        chat = {
+          adapter = 'copilot',
+        },
+        inline = {
+          adapter = 'copilot',
+          keymaps = {
+            accept_change = {
+              modes = { n = '<leader>a' },
+              description = 'Accept Copilot Change',
+            },
+            reject_change = {
+              modes = { n = '<leader>r' },
+              description = 'Reject Copilot Change',
+            },
+          },
+        },
+      },
+      display = {
+        action_palette = {
+          provider = 'default',
+        },
+        diff = {
+          provider = 'mini_diff',
+        },
+      },
+    },
+    dependencies = {
+      'nvim-lua/plenary.nvim',
+      'nvim-treesitter/nvim-treesitter',
+      'ravitemer/mcphub.nvim',
+      'j-hui/fidget.nvim', -- Display status
+    },
+  },
   { -- Collection of various small independent plugins/modules
     'echasnovski/mini.nvim',
     config = function()
@@ -1061,72 +1105,6 @@ vim.api.nvim_create_autocmd('FileType', {
 -- uv env auto loader
 -- require 'custom/plugins/uv-env'
 -- require 'auto_venv'
--- Harpoon
-local harpoon = require 'harpoon'
-
--- REQUIRED
-harpoon:setup()
--- REQUIRED
-
-vim.keymap.set('n', '<leader>a', function()
-  harpoon:list():add()
-end)
-vim.keymap.set('n', '<C-e>', function()
-  harpoon.ui:toggle_quick_menu(harpoon:list())
-end)
-
--- Toggle previous & next buffers stored within Harpoon list
-vim.keymap.set('n', '<C-7>', function()
-  harpoon:list():prev()
-end)
-vim.keymap.set('n', '<C-8>', function()
-  harpoon:list():next()
-end)
-
--- harpoon telescope config
-local conf = require('telescope.config').values
-local function toggle_telescope(harpoon_files)
-  local file_paths = {}
-  for _, item in ipairs(harpoon_files.items) do
-    table.insert(file_paths, item.value)
-  end
-  local finder = function()
-    local paths = {}
-    for _, item in ipairs(harpoon_files.items) do
-      table.insert(paths, item.value)
-    end
-
-    return require('telescope.finders').new_table {
-      results = paths,
-    }
-  end
-
-  require('telescope.pickers')
-    .new({}, {
-      prompt_title = 'Harpoon',
-      finder = require('telescope.finders').new_table {
-        results = file_paths,
-      },
-      previewer = conf.file_previewer {},
-      attach_mappings = function(prompt_bufnr, map)
-        map('i', '<C-d>', function()
-          local state = require 'telescope.actions.state'
-          local selected_entry = state.get_selected_entry()
-          local current_picker = state.get_current_picker(prompt_bufnr)
-
-          table.remove(harpoon_files.items, selected_entry.index)
-          current_picker:refresh(finder())
-        end)
-        return true
-      end,
-      sorter = conf.generic_sorter {},
-    })
-    :find()
-end
-
-vim.keymap.set('n', '<C-e>', function()
-  toggle_telescope(harpoon:list())
-end, { desc = 'Open harpoon window' })
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
