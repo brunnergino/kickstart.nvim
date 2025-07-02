@@ -61,6 +61,19 @@ vim.g.have_nerd_font = true
 vim.o.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
+
+-- Diffview aliases
+vim.cmd 'command! -nargs=* Do DiffviewOpen <args>'
+vim.cmd 'command! -nargs=0 Dc DiffviewClose'
+
+-- CodeCompanion aliases
+vim.cmd 'command! -nargs=* Cc CodeCompanionChat <args>'
+vim.cmd 'command! -nargs=0 Ct CodeCompanionChat Toggle'
+
+-- You can also create key mappings if desired
+vim.api.nvim_set_keymap('n', '<leader>dom', ':DiffviewOpen origin/main<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>doh', ':DiffviewOpen HEAD~1<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>dc', ':DiffviewClose<CR>', { noremap = true, silent = true })
 vim.o.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
@@ -133,6 +146,9 @@ vim.o.confirm = true
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- Diagnostic keymaps
+vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, { desc = 'Go to previous [D]iagnostic message' })
+vim.keymap.set('n', ']d', vim.diagnostic.goto_next, { desc = 'Go to next [D]iagnostic message' })
+vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show diagnostic [E]rror messages' })
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
@@ -259,7 +275,70 @@ require('lazy').setup({
       },
     },
   },
+  {
+    'linux-cultist/venv-selector.nvim',
+    dependencies = {
+      'neovim/nvim-lspconfig',
+      'mfussenegger/nvim-dap',
+      'mfussenegger/nvim-dap-python', -- optional
+      { 'nvim-telescope/telescope.nvim', branch = '0.1.x', dependencies = { 'nvim-lua/plenary.nvim' } },
+    },
+    lazy = false,
+    branch = 'regexp', -- This is the regexp branch, use this for the new version
+    keys = {
+      -- The keybinding still lets you open the picker manually if you need to
+      { ',v', '<cmd>VenvSelect<cr>' },
+    },
+    ---@type venv-selector.Config
+    opts = {
+      -- Your settings go here
+    },
+    config = function(_, opts)
+      require('venv-selector').setup(opts)
 
+      local last_project_root = ''
+      local venv_group = vim.api.nvim_create_augroup('VenvSelectorSilentAutoSwitch', { clear = true })
+
+      vim.api.nvim_create_autocmd('BufEnter', {
+        group = venv_group,
+        desc = 'Silently auto-select Python venv for nested projects',
+        callback = function(args)
+          if vim.bo[args.buf].buftype ~= '' or vim.bo[args.buf].filetype ~= 'python' then
+            return
+          end
+
+          local current_file_path = vim.api.nvim_buf_get_name(args.buf)
+          if not current_file_path or current_file_path == '' then
+            return
+          end
+
+          local venv_dir = vim.fs.find({ '.venv' }, {
+            path = current_file_path,
+            upward = true,
+            type = 'directory',
+          })[1]
+
+          if not venv_dir then
+            return
+          end
+
+          local project_root = vim.fn.fnamemodify(venv_dir, ':h')
+
+          if project_root and project_root ~= last_project_root then
+            -- We now call the backend function directly to avoid the UI picker.
+            local ok, backend = pcall(require, 'venv-selector.backend')
+            if ok then
+              backend.update_venv()
+            end
+
+            last_project_root = project_root
+          end
+        end,
+      })
+    end,
+  },
+
+  --
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
   -- This is often very useful to both group configuration, as well as handle
@@ -521,7 +600,7 @@ require('lazy').setup({
 
           -- Execute a code action, usually your cursor needs to be on top of an error
           -- or a suggestion from your LSP for this to activate.
-          map('gra', vim.lsp.buf.code_action, '[G]oto Code [A]ction', { 'n', 'x' })
+          map('<leader>ca', vim.lsp.buf.code_action, '[G]oto Code [A]ction', { 'n', 'x' })
 
           -- Find references for the word under your cursor.
           map('grr', require('telescope.builtin').lsp_references, '[G]oto [R]eferences')
@@ -928,6 +1007,14 @@ require('lazy').setup({
   {
     'github/copilot.vim',
   },
+
+  {
+    'm4xshen/hardtime.nvim',
+    lazy = false,
+    dependencies = { 'MunifTanjim/nui.nvim' },
+    opts = {},
+  },
+
   {
     'olimorris/codecompanion.nvim',
     cmd = { 'CodeCompanion', 'CodeCompanionChat', 'CodeCompanionActions' },
@@ -937,7 +1024,7 @@ require('lazy').setup({
           return require('codecompanion.adapters').extend('copilot', {
             schema = {
               model = {
-                default = 'claude-3.7-sonnet',
+                default = 'gemini-2.5-pro',
               },
             },
           })
@@ -1086,25 +1173,6 @@ require('lazy').setup({
     },
   },
 })
-
-vim.api.nvim_create_autocmd('FileType', {
-  pattern = 'go',
-  callback = function(ev)
-    vim.lsp.start {
-      name = 'chinese-lsp',
-      cmd = { '/Users/gino/projects/chinese_lsp/bin/chinese-lsp' },
-      root_dir = vim.fn.getcwd(),
-      autostart = true,
-      config = { filetypes = { 'go' } },
-      on_attach = function(client, bufnr)
-        vim.lsp.buf_attach_client(bufnr, client.id)
-      end,
-    }
-  end,
-})
--- uv env auto loader
--- require 'custom/plugins/uv-env'
--- require 'auto_venv'
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
