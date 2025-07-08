@@ -62,18 +62,6 @@ vim.o.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
 
--- Diffview aliases
-vim.cmd 'command! -nargs=* Do DiffviewOpen <args>'
-vim.cmd 'command! -nargs=0 Dc DiffviewClose'
-
--- CodeCompanion aliases
-vim.cmd 'command! -nargs=* Cc CodeCompanionChat <args>'
-vim.cmd 'command! -nargs=0 Ct CodeCompanionChat Toggle'
-
--- You can also create key mappings if desired
-vim.api.nvim_set_keymap('n', '<leader>dom', ':DiffviewOpen origin/main<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>doh', ':DiffviewOpen HEAD~1<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>dc', ':DiffviewClose<CR>', { noremap = true, silent = true })
 vim.o.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
@@ -174,6 +162,37 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right win
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
+-- Snack explorer keymaps
+vim.api.nvim_set_keymap('n', '<leader>se', ':lua Snacks.picker.explorer()<CR>', { noremap = true, silent = true })
+
+-- Diffview aliases
+vim.cmd 'command! -nargs=* Do DiffviewOpen <args>'
+vim.cmd 'command! -nargs=0 Dc DiffviewClose'
+
+-- CodeCompanion aliases
+vim.cmd 'command! -nargs=* Cc CodeCompanionChat <args>'
+vim.cmd 'command! -nargs=0 Ct CodeCompanionChat Toggle'
+
+-- Buffer navigation
+-- Use <leader>l for the next buffer
+vim.keymap.set('n', '<leader>l', ':bnext<CR>', {
+  noremap = true,
+  silent = true,
+  desc = 'Next buffer',
+})
+
+-- Use <leader>h for the previous buffer
+vim.keymap.set('n', '<leader>h', ':bprevious<CR>', {
+  noremap = true,
+  silent = true,
+  desc = 'Previous buffer',
+})
+
+-- Diffview keymaps
+vim.api.nvim_set_keymap('n', '<leader>dom', ':DiffviewOpen origin/main<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>doh', ':DiffviewOpen HEAD~1<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>dc', ':DiffviewClose<CR>', { noremap = true, silent = true })
+
 -- Tab commands
 vim.keymap.set('n', '<leader>nt', '<cmd>tabnew<cr>', { desc = 'Open new empty tab' })
 
@@ -229,6 +248,8 @@ rtp:prepend(lazypath)
 --  To update plugins you can run
 --    :Lazy update
 --
+--
+--
 -- NOTE: Here is where you install your plugins.
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
@@ -275,67 +296,52 @@ require('lazy').setup({
       },
     },
   },
+
+  {
+    'folke/snacks.nvim',
+    priority = 1000,
+    lazy = false,
+    ---@type snacks.Config
+    opts = {
+      -- your configuration comes here
+      -- or leave it empty to use the default settings
+      -- refer to the configuration section below
+      bigfile = { enabled = true },
+      dashboard = { enabled = true },
+      ---@class snacks.explorer.Config
+      explorer = {
+        enabled = true,
+        replace_netrw = false, -- Replace netrw with the snacks explorer
+      },
+      indent = { enabled = false },
+      input = { enabled = true },
+      picker = { enabled = true },
+      notifier = { enabled = true },
+      quickfile = { enabled = true },
+      scope = { enabled = false },
+      scroll = { enabled = false },
+      statuscolumn = { enabled = true },
+      words = { enabled = true },
+    },
+  },
+
   {
     'linux-cultist/venv-selector.nvim',
     dependencies = {
       'neovim/nvim-lspconfig',
       'mfussenegger/nvim-dap',
-      'mfussenegger/nvim-dap-python', -- optional
+      'mfussenegger/nvim-dap-python', --optional
       { 'nvim-telescope/telescope.nvim', branch = '0.1.x', dependencies = { 'nvim-lua/plenary.nvim' } },
     },
     lazy = false,
     branch = 'regexp', -- This is the regexp branch, use this for the new version
     keys = {
-      -- The keybinding still lets you open the picker manually if you need to
-      { ',v', '<cmd>VenvSelect<cr>' },
+      { '<leader>v', '<cmd>VenvSelect<cr>' },
     },
     ---@type venv-selector.Config
     opts = {
-      -- Your settings go here
+      name = { '.venv', 'venv' },
     },
-    config = function(_, opts)
-      require('venv-selector').setup(opts)
-
-      local last_project_root = ''
-      local venv_group = vim.api.nvim_create_augroup('VenvSelectorSilentAutoSwitch', { clear = true })
-
-      vim.api.nvim_create_autocmd('BufEnter', {
-        group = venv_group,
-        desc = 'Silently auto-select Python venv for nested projects',
-        callback = function(args)
-          if vim.bo[args.buf].buftype ~= '' or vim.bo[args.buf].filetype ~= 'python' then
-            return
-          end
-
-          local current_file_path = vim.api.nvim_buf_get_name(args.buf)
-          if not current_file_path or current_file_path == '' then
-            return
-          end
-
-          local venv_dir = vim.fs.find({ '.venv' }, {
-            path = current_file_path,
-            upward = true,
-            type = 'directory',
-          })[1]
-
-          if not venv_dir then
-            return
-          end
-
-          local project_root = vim.fn.fnamemodify(venv_dir, ':h')
-
-          if project_root and project_root ~= last_project_root then
-            -- We now call the backend function directly to avoid the UI picker.
-            local ok, backend = pcall(require, 'venv-selector.backend')
-            if ok then
-              backend.update_venv()
-            end
-
-            last_project_root = project_root
-          end
-        end,
-      })
-    end,
   },
 
   --
@@ -730,13 +736,7 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local root_files = {
-        '.pre-commit-config.yaml',
         'pyproject.toml',
-        'setup.py',
-        'setup.cfg',
-        'requirements.txt',
-        'Pipfile',
-        'pyrightconfig.json',
       }
       local servers = {
         -- clangd = {},
@@ -830,6 +830,7 @@ require('lazy').setup({
       }
     end,
   },
+
   {
     'sindrets/diffview.nvim',
     config = function()
@@ -1004,6 +1005,7 @@ require('lazy').setup({
 
   -- Highlight todo, notes, etc in comments
   { 'folke/todo-comments.nvim', event = 'VimEnter', dependencies = { 'nvim-lua/plenary.nvim' }, opts = { signs = false } },
+
   {
     'github/copilot.vim',
   },
@@ -1015,55 +1017,6 @@ require('lazy').setup({
     opts = {},
   },
 
-  {
-    'olimorris/codecompanion.nvim',
-    cmd = { 'CodeCompanion', 'CodeCompanionChat', 'CodeCompanionActions' },
-    opts = {
-      adapters = {
-        copilot = function()
-          return require('codecompanion.adapters').extend('copilot', {
-            schema = {
-              model = {
-                default = 'gemini-2.5-pro',
-              },
-            },
-          })
-        end,
-      },
-      strategies = {
-        chat = {
-          adapter = 'copilot',
-        },
-        inline = {
-          adapter = 'copilot',
-          keymaps = {
-            accept_change = {
-              modes = { n = '<leader>a' },
-              description = 'Accept Copilot Change',
-            },
-            reject_change = {
-              modes = { n = '<leader>r' },
-              description = 'Reject Copilot Change',
-            },
-          },
-        },
-      },
-      display = {
-        action_palette = {
-          provider = 'default',
-        },
-        diff = {
-          provider = 'mini_diff',
-        },
-      },
-    },
-    dependencies = {
-      'nvim-lua/plenary.nvim',
-      'nvim-treesitter/nvim-treesitter',
-      'ravitemer/mcphub.nvim',
-      'j-hui/fidget.nvim', -- Display status
-    },
-  },
   { -- Collection of various small independent plugins/modules
     'echasnovski/mini.nvim',
     config = function()
@@ -1101,6 +1054,7 @@ require('lazy').setup({
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
+
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
