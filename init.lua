@@ -101,6 +101,9 @@ vim.o.timeoutlen = 300
 vim.o.splitright = true
 vim.o.splitbelow = true
 
+-- Granular word movement
+vim.opt.iskeyword:remove '.,-,_,+,(),[,],{,},<,>,=,/,\\,|'
+
 -- Sets how neovim will display certain whitespace characters in the editor.
 --  See `:help 'list'`
 --  and `:help 'listchars'`
@@ -329,8 +332,8 @@ require('lazy').setup({
     'linux-cultist/venv-selector.nvim',
     dependencies = {
       'neovim/nvim-lspconfig',
-      'mfussenegger/nvim-dap',
-      'mfussenegger/nvim-dap-python', --optional
+      -- 'mfussenegger/nvim-dap',
+      -- 'mfussenegger/nvim-dap-python', --optional
       { 'nvim-telescope/telescope.nvim', branch = '0.1.x', dependencies = { 'nvim-lua/plenary.nvim' } },
     },
     lazy = false,
@@ -338,9 +341,12 @@ require('lazy').setup({
     keys = {
       { '<leader>v', '<cmd>VenvSelect<cr>' },
     },
-    ---@type venv-selector.Config
     opts = {
-      name = { '.venv', 'venv' },
+      settings = {
+        options = {
+          notify_user_on_venv_activation = false,
+        },
+      },
     },
   },
 
@@ -724,7 +730,7 @@ require('lazy').setup({
       --  By default, Neovim doesn't support everything that is in the LSP specification.
       --  When you add blink.cmp, luasnip, etc. Neovim now has *more* capabilities.
       --  So, we create new capabilities with blink.cmp, and then broadcast that to the servers.
-      local capabilities = require('blink.cmp').get_lsp_capabilities()
+      -- local capabilities = require('blink.cmp').get_lsp_capabilities()
 
       -- Enable the following language servers
       --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
@@ -735,37 +741,50 @@ require('lazy').setup({
       --  - capabilities (table): Override fields in capabilities. Can be used to disable certain LSP features.
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
-      local root_files = {
+      local pyright_root_files = {
         'pyproject.toml',
       }
+      local ruff_root_files = {
+        'mise.toml',
+      }
       local servers = {
-        -- clangd = {},
+
         gopls = {
-          capabilities = capabilities,
           analyses = {
             unusedparams = true,
           },
           staticcheck = true,
           gofumpt = true,
         },
-        -- black = {},
+
         ruff = {
-          root_dir = require('lspconfig.util').root_pattern(unpack(root_files)),
-          capabilities = capabilities,
-          settings = {
-            organizeImports = false,
+          root_markers = { 'mise.toml' }, -- require('lspconfig.util').root_pattern(unpack(ruff_root_files)),
+          capabilities = {
+            general = {
+              positionEncodings = { 'utf-16' },
+            },
           },
-          args = {
-            '--line-length=120',
+
+          init_options = {
+            settings = {
+              organizeImports = true,
+              fixAll = true,
+              lineLength = 120,
+              lint = {
+                enable = true,
+              },
+              configurationPreference = 'filesystemFirst',
+            },
           },
-          -- disable ruff as hover provider to avoid conflicts with pyright
           on_attach = function(client)
             client.server_capabilities.hoverProvider = false
           end,
+          cmd = { 'mise', 'exec', '--', 'ruff', 'server' },
         },
+
         pyright = {
-          root_dir = require('lspconfig.util').root_pattern(unpack(root_files)),
-          capabilities = capabilities,
+          -- root_dir = require('lspconfig.util').root_pattern(unpack(pyright_root_files)),
+          root_markers = { 'pyproject.toml' },
           settings = {
             python = {
               analysis = {
@@ -799,6 +818,11 @@ require('lazy').setup({
           },
         },
       }
+      ---@type MasonLspconfigSettings
+      ---@diagnostic disable-next-line: missing-fields
+      require('mason-lspconfig').setup {
+        automatic_enable = vim.tbl_keys(servers or {}),
+      }
 
       -- Ensure the servers and tools above are installed
       --
@@ -816,18 +840,21 @@ require('lazy').setup({
         'stylua', -- Used to format Lua code
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
+      for server_name, config in pairs(servers) do
+        vim.lsp.config(server_name, config)
+      end
 
-      require('mason-lspconfig').setup {
-        ensure_installed = {},
-        automatic_installation = false,
-        handlers = {
-          function(server_name)
-            local server = servers[server_name] or {}
-            server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-            require('lspconfig')[server_name].setup(server)
-          end,
-        },
-      }
+      -- require('mason-lspconfig').setup {
+      --   ensure_installed = {},
+      --   automatic_installation = false,
+      --   handlers = {
+      --     function(server_name)
+      --       local server = servers[server_name] or {}
+      --       server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
+      --       require('lspconfig')[server_name].setup(server)
+      --     end,
+      --   },
+      -- }
     end,
   },
 
@@ -849,19 +876,19 @@ require('lazy').setup({
       {
         '<leader>f',
         function()
-          require('conform').format { async = true, lsp_format = 'fallback' }
+          require('conform').format { async = false, lsp_format = 'fallback' }
         end,
         mode = '',
         desc = '[F]ormat buffer',
       },
     },
     opts = {
-      notify_on_error = false,
+      notify_on_error = true,
       format_on_save = function(bufnr)
         -- Disable "format_on_save lsp_fallback" for languages that don't
         -- have a well standardized coding style. You can add additional
         -- languages here or re-enable it for the disabled ones.
-        local disable_filetypes = { c = true, cpp = true, python = true }
+        local disable_filetypes = { c = true, cpp = true }
         if disable_filetypes[vim.bo[bufnr].filetype] then
           return nil
         else
@@ -873,6 +900,7 @@ require('lazy').setup({
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
+        python = { 'ruff' },
         -- Conform can also run multiple formatters sequentially
         -- python = { 'isort', 'black' },
         --
@@ -1057,6 +1085,9 @@ require('lazy').setup({
 
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
+    dependencies = {
+      'nvim-treesitter/nvim-treesitter-textobjects',
+    },
     build = ':TSUpdate',
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
@@ -1072,7 +1103,22 @@ require('lazy').setup({
         additional_vim_regex_highlighting = { 'ruby' },
       },
       indent = { enable = true, disable = { 'ruby' } },
+
+      textobjects = {
+        select = {
+          enable = true,
+          lookahead = true, -- Automatically jump to the next text object
+          keymaps = {
+            -- You can use the capture groups defined in textobjects.scm
+            ['af'] = '@function.outer',
+            ['if'] = '@function.inner',
+            ['ac'] = '@class.outer',
+            ['ic'] = '@class.inner',
+          },
+        },
+      },
     },
+
     -- There are additional nvim-treesitter modules that you can use to interact
     -- with nvim-treesitter. You should go explore a few and see what interests you:
     --
