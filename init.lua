@@ -199,6 +199,13 @@ vim.api.nvim_set_keymap('n', '<leader>dc', ':DiffviewClose<CR>', { noremap = tru
 -- Tab commands
 vim.keymap.set('n', '<leader>nt', '<cmd>tabnew<cr>', { desc = 'Open new empty tab' })
 
+-- Yank the current file path to the clipboard
+vim.keymap.set('n', '<leader>yfp', function()
+  local file_path = vim.fn.expand '%:p'
+  vim.fn.setreg('+', file_path)
+  vim.notify('Yanked file path: ' .. file_path, vim.log.levels.INFO)
+end, { desc = 'Yank current [F]ile [P]ath to clipboard' })
+
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 --
@@ -900,7 +907,7 @@ require('lazy').setup({
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
-        python = { 'ruff' },
+        -- python = { 'ruff' },
         -- Conform can also run multiple formatters sequentially
         -- python = { 'isort', 'black' },
         --
@@ -1030,20 +1037,106 @@ require('lazy').setup({
       vim.cmd.colorscheme 'tokyonight-night'
     end,
   },
-
+  -- Buffer manager
+  -- { 'serhez/bento.nvim', opts = {
+  --   max_open_buffers = 10,
+  --   buffer_deletion_metric = 'recency_access',
+  -- } },
   -- Highlight todo, notes, etc in comments
   { 'folke/todo-comments.nvim', event = 'VimEnter', dependencies = { 'nvim-lua/plenary.nvim' }, opts = { signs = false } },
 
   {
     'github/copilot.vim',
   },
-
-  {
-    'm4xshen/hardtime.nvim',
-    lazy = false,
-    dependencies = { 'MunifTanjim/nui.nvim' },
-    opts = {},
-  },
+  -- {
+  --   'folke/sidekick.nvim',
+  --   opts = {
+  --     -- add any options here
+  --   },
+  --   keys = {
+  --     {
+  --       '<tab>',
+  --       function()
+  --         -- if there is a next edit, jump to it, otherwise apply it if any
+  --         if not require('sidekick').nes_jump_or_apply() then
+  --           return '<Tab>' -- fallback to normal tab
+  --         end
+  --       end,
+  --       expr = true,
+  --       desc = 'Goto/Apply Next Edit Suggestion',
+  --     },
+  --     {
+  --       '<c-.>',
+  --       function()
+  --         require('sidekick.cli').toggle()
+  --       end,
+  --       desc = 'Sidekick Toggle',
+  --       mode = { 'n', 't', 'i', 'x' },
+  --     },
+  --     {
+  --       '<leader>aa',
+  --       function()
+  --         require('sidekick.cli').toggle()
+  --       end,
+  --       desc = 'Sidekick Toggle CLI',
+  --     },
+  --     {
+  --       '<leader>as',
+  --       function()
+  --         require('sidekick.cli').select()
+  --       end,
+  --       -- Or to select only installed tools:
+  --       -- require("sidekick.cli").select({ filter = { installed = true } })
+  --       desc = 'Select CLI',
+  --     },
+  --     {
+  --       '<leader>ad',
+  --       function()
+  --         require('sidekick.cli').close()
+  --       end,
+  --       desc = 'Detach a CLI Session',
+  --     },
+  --     {
+  --       '<leader>at',
+  --       function()
+  --         require('sidekick.cli').send { msg = '{this}' }
+  --       end,
+  --       mode = { 'x', 'n' },
+  --       desc = 'Send This',
+  --     },
+  --     {
+  --       '<leader>af',
+  --       function()
+  --         require('sidekick.cli').send { msg = '{file}' }
+  --       end,
+  --       desc = 'Send File',
+  --     },
+  --     {
+  --       '<leader>av',
+  --       function()
+  --         require('sidekick.cli').send { msg = '{selection}' }
+  --       end,
+  --       mode = { 'x' },
+  --       desc = 'Send Visual Selection',
+  --     },
+  --     {
+  --       '<leader>ap',
+  --       function()
+  --         require('sidekick.cli').prompt()
+  --       end,
+  --       mode = { 'n', 'x' },
+  --       desc = 'Sidekick Select Prompt',
+  --     },
+  --     -- Example of a keybinding to open Claude directly
+  --     {
+  --       '<leader>ac',
+  --       function()
+  --         require('sidekick.cli').toggle { name = 'claude', focus = true }
+  --       end,
+  --       desc = 'Sidekick Toggle Claude',
+  --     },
+  --   },
+  -- },
 
   { -- Collection of various small independent plugins/modules
     'echasnovski/mini.nvim',
@@ -1140,13 +1233,13 @@ require('lazy').setup({
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',
-  -- require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.neo-tree',
   -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
-  -- { import = 'custom.plugins' },
+  { import = 'custom.plugins' },
   --
   -- For additional information with loading, sourcing and examples see `:help lazy.nvim-🔌-plugin-spec`
   -- Or use telescope!
