@@ -8,15 +8,39 @@ return {
     auto_start = true,
     log_level = 'info',
     terminal = {
-      provider = 'native', -- opens inside nvim; set to 'tmux' to open in a new tmux pane instead
+      -- There is no 'tmux' provider. To open Claude in a real tmux pane we use
+      -- the 'external' provider and shell out to `tmux split-window` ourselves.
+      provider = 'external',
       split_side = 'right',
       split_width_percentage = 0.38,
+      provider_opts = {
+        -- Function form so we can forward the plugin's env vars (the WebSocket
+        -- port etc.) into the new pane via tmux's `-e KEY=VAL`. A plain
+        -- `tmux split-window ... %s` would NOT inherit them and Claude would
+        -- fail to connect back to Neovim.
+        external_terminal_cmd = function(cmd_string, env_table)
+          local args = { 'tmux', 'split-window', '-h', '-l', '38%' }
+          for key, value in pairs(env_table or {}) do
+            table.insert(args, '-e')
+            table.insert(args, string.format('%s=%s', key, value))
+          end
+          table.insert(args, cmd_string)
+          return args
+        end,
+      },
     },
   },
   keys = {
-    { '<leader>ac', '<cmd>ClaudeCode<cr>', desc = 'Toggle [C]laude Code' },
-    { '<leader>af', '<cmd>ClaudeCodeAdd %<cr>', desc = 'Claude: add current [F]ile' },
-    { '<leader>as', '<cmd>ClaudeCodeAdd<cr>', mode = 'v', desc = 'Claude: [S]end selection' },
-    { '<leader>at', '<cmd>ClaudeCodeTreeAdd<cr>', desc = 'Claude: add from [T]ree (neo-tree)' },
+    { '<leader>a', nil, desc = 'AI/Claude Code' },
+    { '<leader>ac', '<cmd>ClaudeCode<cr>', desc = 'Toggle Claude' },
+    { '<leader>af', '<cmd>ClaudeCodeFocus<cr>', desc = 'Focus Claude' },
+    { '<leader>ar', '<cmd>ClaudeCode --resume<cr>', desc = 'Resume' },
+    { '<leader>aC', '<cmd>ClaudeCode --continue<cr>', desc = 'Continue' },
+    { '<leader>am', '<cmd>ClaudeCodeSelectModel<cr>', desc = 'Select model' },
+    { '<leader>ab', '<cmd>ClaudeCodeAdd %<cr>', desc = 'Add current buffer' },
+    { '<leader>as', '<cmd>ClaudeCodeSend<cr>', mode = 'v', desc = 'Send selection' },
+    { '<leader>as', '<cmd>ClaudeCodeTreeAdd<cr>', desc = 'Add file', ft = { 'NvimTree', 'neo-tree', 'oil', 'minifiles', 'netrw' } },
+    { '<leader>aa', '<cmd>ClaudeCodeDiffAccept<cr>', desc = 'Accept diff' },
+    { '<leader>ad', '<cmd>ClaudeCodeDiffDeny<cr>', desc = 'Deny diff' },
   },
 }

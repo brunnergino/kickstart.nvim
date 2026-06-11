@@ -165,6 +165,29 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right win
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
+-- Resize splits with Ctrl + arrow keys; the arrow moves the shared separator in
+-- that direction regardless of which side the focused split is on.
+local resize_step = 5
+-- Hard floor so moving the divider toward a pane can't squish it out of existence
+-- (winminheight defaults to 1, which is already enough vertically).
+vim.o.winminwidth = 10
+-- `%+d` forces a leading +/- so the resize is always RELATIVE; a bare positive
+-- number (e.g. "vertical resize 5") would be an ABSOLUTE resize to 5 columns.
+local function move_separator_h(dir) -- dir: 1 = right, -1 = left
+  local at_right_edge = vim.fn.winnr 'l' == vim.fn.winnr()
+  local delta = (at_right_edge and -dir or dir) * resize_step
+  vim.cmd(('vertical resize %+d'):format(delta))
+end
+local function move_separator_v(dir) -- dir: 1 = down, -1 = up
+  local at_bottom_edge = vim.fn.winnr 'j' == vim.fn.winnr()
+  local delta = (at_bottom_edge and -dir or dir) * resize_step
+  vim.cmd(('resize %+d'):format(delta))
+end
+vim.keymap.set('n', '<C-Up>', function() move_separator_v(-1) end, { desc = 'Move split separator up' })
+vim.keymap.set('n', '<C-Down>', function() move_separator_v(1) end, { desc = 'Move split separator down' })
+vim.keymap.set('n', '<C-Left>', function() move_separator_h(-1) end, { desc = 'Move split separator left' })
+vim.keymap.set('n', '<C-Right>', function() move_separator_h(1) end, { desc = 'Move split separator right' })
+
 -- Snack explorer keymaps
 vim.api.nvim_set_keymap('n', '<leader>se', ':lua Snacks.picker.explorer()<CR>', { noremap = true, silent = true })
 
