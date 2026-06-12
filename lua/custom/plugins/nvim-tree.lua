@@ -10,8 +10,11 @@ return {
   opts = {
     hijack_netrw = false,
     view = {
-      width = 30,
+      width = 40,
       side = 'left',
+      -- Keep the tree width when opening files instead of letting Neovim
+      -- equalize all windows (which snaps the tree back to `width`).
+      preserve_window_proportions = true,
     },
     renderer = {
       group_empty = true,
