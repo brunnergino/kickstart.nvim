@@ -49,6 +49,19 @@ What is Kickstart?
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+-- Suppress client.notify/request/etc. deprecation warnings from plugins not yet
+-- updated for Neovim 0.12 (deprecated in favour of client:method() syntax, removed in 0.13).
+do
+  local orig = vim.deprecate
+  ---@diagnostic disable-next-line: duplicate-set-field
+  vim.deprecate = function(name, alt, version, plugin, backtrace)
+    if type(name) == 'string' and name:match('^client%.') then
+      return
+    end
+    return orig(name, alt, version, plugin, backtrace)
+  end
+end
+
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
 
@@ -367,7 +380,6 @@ require('lazy').setup({
       { 'nvim-telescope/telescope.nvim', branch = '0.1.x', dependencies = { 'nvim-lua/plenary.nvim' } },
     },
     lazy = false,
-    branch = 'regexp', -- This is the regexp branch, use this for the new version
     keys = {
       { '<leader>v', '<cmd>VenvSelect<cr>' },
     },
@@ -830,7 +842,33 @@ require('lazy').setup({
         --    https://github.com/pmizio/typescript-tools.nvim
         --
         -- But for many setups, the LSP (`ts_ls`) will work just fine
-        -- ts_ls = {},
+        ts_ls = {
+          settings = {
+            -- Enable inlay hints (shown via the editor; toggle with your inlay-hint keymap)
+            typescript = {
+              inlayHints = {
+                includeInlayParameterNameHints = 'literals',
+                includeInlayParameterNameHintsWhenArgumentMatchesName = false,
+                includeInlayFunctionParameterTypeHints = true,
+                includeInlayVariableTypeHints = false,
+                includeInlayPropertyDeclarationTypeHints = true,
+                includeInlayFunctionLikeReturnTypeHints = true,
+                includeInlayEnumMemberValueHints = true,
+              },
+            },
+            javascript = {
+              inlayHints = {
+                includeInlayParameterNameHints = 'all',
+                includeInlayParameterNameHintsWhenArgumentMatchesName = false,
+                includeInlayFunctionParameterTypeHints = true,
+                includeInlayVariableTypeHints = true,
+                includeInlayPropertyDeclarationTypeHints = true,
+                includeInlayFunctionLikeReturnTypeHints = true,
+                includeInlayEnumMemberValueHints = true,
+              },
+            },
+          },
+        },
         --
 
         lua_ls = {
